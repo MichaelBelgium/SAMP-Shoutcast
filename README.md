@@ -16,3 +16,8 @@ To order to get this include to work you need 1 plugin:
 ```
 
 Only these 2 things are required to run the include.
+
+<h1>Media</h1>
+The rcon command "stats" returns this for example:
+
+<img src="http://puu.sh/l0I6h.png" />
