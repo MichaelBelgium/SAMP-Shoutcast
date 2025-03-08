@@ -56,6 +56,12 @@ public OnResponse(index, response_code, data[])
         Shoutcast[PeakListeners] = json_get_int(response, "peaklisteners");
         Shoutcast[StreamUptime] = json_get_int(response, "streamuptime");
         Shoutcast[MaxListeners] = json_get_int(response, "maxlisteners");
+        
+        if(Shoutcast[Status] != newStatus)
+        {
+            CallLocalFunction("OnStreamStatusChange", "d", newStatus);
+            Shoutcast[Status] = newStatus;
+        }
 
         if(Shoutcast[Status])
         {
@@ -70,12 +76,6 @@ public OnResponse(index, response_code, data[])
         }
 
         json_close(response);
-
-        if(Shoutcast[Status] != newStatus)
-        {
-            CallLocalFunction("OnStreamStatusChange", "d", newStatus);
-            Shoutcast[Status] = newStatus;
-        }
     }
     else
         printf("ERROR Onresponse: %i", response_code);
