@@ -21,69 +21,85 @@ forward OnUpdate();
 forward OnSongChange(new_song[]);
 forward OnStreamStatusChange(bool:status);
 
-new gTmp[256], JSONNode:node, gTimer = -1, song[2][64], bool:g_status;
-new g_IP[16], g_port;
+enum shData
+{
+    Timer,
+    IP[16],
+    Port,
+    bool:Status,
+    CurrentSong[256],
+    Listeners,
+    PeakListeners,
+    StreamUptime,
+    MaxListeners,
+}
+
+new Shoutcast[shData];
 
 ShoutcastInit(ip_address[],port)
 {
-	gTimer = SetTimer("OnUpdate", 5000, true);
+    Shoutcast[Timer] = SetTimer("OnUpdate", 5000, true);
+    Shoutcast[Status] = false;
+    Shoutcast[Port] = port;
 
-	song[0] = "N/A";
-	format(g_IP, sizeof(g_IP),"%s",ip_address);
-	g_port = port;
+    format(Shoutcast[IP], 16, "%s", ip_address);
 }
 
 public OnResponse(index, response_code, data[])
 {
-	if(response_code == 200)
-	{
-		node = json_parse_string(data);
+    if(response_code == 200)
+    {
+        new JSONNode:response = json_parse_string(data);
 
-		if(IsValidStream())
-			format(song[1],64,"%s",GetData("songtitle"));
-	}
-	else
-		printf("ERROR Onresponse: %i", response_code);
+        new bool:newStatus = json_get_bool(response, "streamstatus");
+        Shoutcast[Listeners] = json_get_int(response, "currentlisteners");
+        Shoutcast[PeakListeners] = json_get_int(response, "peaklisteners");
+        Shoutcast[StreamUptime] = json_get_int(response, "streamuptime");
+        Shoutcast[MaxListeners] = json_get_int(response, "maxlisteners");
+
+        if(Shoutcast[Status])
+        {
+            new newSong[256];
+            json_get_string(response, newSong, sizeof(newSong), "songtitle");
+
+            if(strcmp(Shoutcast[CurrentSong], newSong, true) != 0)
+            {
+                CallLocalFunction("OnSongChange", "s", newSong);
+                Shoutcast[CurrentSong] = newSong;
+            }
+        }
+
+        json_close(response);
+
+        if(Shoutcast[Status] != newStatus)
+        {
+            CallLocalFunction("OnStreamStatusChange", "d", newStatus);
+            Shoutcast[Status] = newStatus;
+        }
+    }
+    else
+        printf("ERROR Onresponse: %i", response_code);
 }
 
 public OnUpdate()
 {
-	if(gTimer == -1) return 0;
-	format(gTmp,sizeof(gTmp),"%s:%i/stats?sid=1&json=1",g_IP,g_port);
-	HTTP(0, HTTP_GET, gTmp, "", "OnResponse");
+    new endpoint[128];
+    format(endpoint,sizeof(endpoint),"%s:%i/stats?sid=1&json=1",Shoutcast[IP],Shoutcast[Port]);
+    HTTP(0, HTTP_GET, endpoint, "", "OnResponse");
 
-	if(strcmp(song[0], song[1], true) != 0)
-	{
-		CallLocalFunction("OnSongChange", "s", song[1]);
-		song[0] = song[1];
-	}
-
-	if(g_status != (IsValidStream() == 1) ? true : false)
-	{
-		CallLocalFunction("OnStreamStatusChange", "d", IsValidStream());
-		g_status = (IsValidStream() == 1) ? true : false;
-	}
-	return 1;
+    return 1;
 }
 
-stock GetData(data[])
-{
-	json_get_string(node, gTmp, sizeof(gTmp), data);
-	if(gTmp[0] == EOS) gTmp = "N/A";
-	return gTmp;
-}
 
 ShoutcastExit()
 {
-	json_close(node);
-	KillTimer(gTimer);
-	gTimer = -1;
+    KillTimer(Shoutcast[Timer]);
 }
 
-stock IsValidStream() 		return json_get_bool(node, "streamstatus");
-stock GetCurrentSong() 		return song[0];
-stock GetCurrentListeners() return json_get_int(node,"currentlisteners");
-stock GetPeakListeners() 	return json_get_int(node,"peaklisteners");
-stock GetShoutcastUptime() 	return json_get_int(node,"streamuptime");
-stock GetMaxListeners() 	return json_get_int(node,"maxlisteners");
+stock IsValidStream() 		return Shoutcast[Status];
+stock GetCurrentSong() 		return Shoutcast[CurrentSong];
+stock GetCurrentListeners() return Shoutcast[Listeners];
+stock GetPeakListeners() 	return Shoutcast[PeakListeners];
+stock GetShoutcastUptime() 	return Shoutcast[StreamUptime];
+stock GetMaxListeners() 	return Shoutcast[MaxListeners];
 
